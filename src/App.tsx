@@ -8,6 +8,8 @@ import {
 import { allProducts, allCategories, type Product } from './data/products';
 import { initializeDatabase, checkDatabaseHealth, getDatabaseMode, getNeonInfo, type DatabaseStatus } from './database/service';
 import { formatCurrency, getCurrency, setCurrency, getCurrencyCode } from './config/currency';
+import { validateShippingAddress, validatePayment } from './utils/validation';
+import { auditLog } from './audit/logger';
 
 interface CartItem {
   product: Product;
@@ -541,10 +543,81 @@ function CheckoutModal({ onClose, total, items }: { onClose: () => void; total: 
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [orderNumber, setOrderNumber] = useState<string>('');
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [shippingData, setShippingData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'Ghana',
+  });
+  const [shippingErrors, setShippingErrors] = useState<Record<string, string>>({});
+  const [paymentData, setPaymentData] = useState({
+    cardNumber: '',
+    expiryDate: '',
+    cvc: '',
+    cardholderName: '',
+  });
+  const [paymentErrors, setPaymentErrors] = useState<Record<string, string>>({});
 
-  const handleCheckout = () => {
+  const handleShippingSubmit = () => {
+    const validation = validateShippingAddress(shippingData);
+    if (!validation.success) {
+      setShippingErrors(validation.errors || {});
+      return;
+    }
+    setShippingErrors({});
+    setStep(2);
+  };
+
+  const handlePaymentSubmit = () => {
+    const validation = validatePayment(paymentData);
+    if (!validation.success) {
+      setPaymentErrors(validation.errors || {});
+      return;
+    }
+    setPaymentErrors({});
+    setStep(3);
+  };
+
+  const handleCheckout = async () => {
     setIsProcessing(true);
-    setTimeout(() => { setIsProcessing(false); setIsComplete(true); }, 2000);
+    setProcessingError(null);
+
+    try {
+      // Simulate API call (in production, this would call OrderAPI.create)
+      // For now, we'll simulate a successful order creation
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Generate a realistic order number (server would do this)
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substr(2, 4).toUpperCase();
+      const generatedOrderNumber = `IVO-${timestamp}-${random}`;
+      
+      setOrderNumber(generatedOrderNumber);
+      setIsComplete(true);
+      
+      // Log the order creation
+      auditLog('order.created', 'order', generatedOrderNumber, {
+        severity: 'info',
+        newState: { total, itemCount: items.length, shippingData },
+      });
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create order';
+      setProcessingError(errorMessage);
+      auditLog('order.creation_failed', 'order', 'unknown', {
+        severity: 'error',
+        metadata: { error: errorMessage },
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (isComplete) {
@@ -557,7 +630,7 @@ function CheckoutModal({ onClose, total, items }: { onClose: () => void; total: 
           </div>
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Order Confirmed!</h2>
-            <p className="text-gray-500 mt-2">Order #{Math.floor(Math.random() * 900000 + 100000)}</p>
+            <p className="text-gray-500 mt-2">Order #{orderNumber}</p>
           </div>
           <div className="bg-gray-50 rounded-xl p-5 space-y-2">
             <div className="flex justify-between text-sm"><span className="text-gray-500">Items</span><span className="text-gray-900">{items.reduce((a, b) => a + b.quantity, 0)}</span></div>
@@ -595,32 +668,131 @@ function CheckoutModal({ onClose, total, items }: { onClose: () => void; total: 
             <div className="space-y-4 animate-fade-in">
               <h3 className="text-sm font-semibold text-gray-900">Shipping Information</h3>
               <div className="grid grid-cols-2 gap-3">
-                <input placeholder="First Name" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
-                <input placeholder="Last Name" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
+                <div>
+                  <input 
+                    placeholder="First Name" 
+                    value={shippingData.firstName}
+                    onChange={(e) => setShippingData({...shippingData, firstName: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.firstName ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {shippingErrors.firstName && <p className="text-red-500 text-xs mt-1">{shippingErrors.firstName}</p>}
+                </div>
+                <div>
+                  <input 
+                    placeholder="Last Name" 
+                    value={shippingData.lastName}
+                    onChange={(e) => setShippingData({...shippingData, lastName: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.lastName ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {shippingErrors.lastName && <p className="text-red-500 text-xs mt-1">{shippingErrors.lastName}</p>}
+                </div>
               </div>
-              <input placeholder="Email Address" type="email" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
-              <input placeholder="Street Address" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
+              <div>
+                <input 
+                  placeholder="Email Address" 
+                  type="email"
+                  value={shippingData.email}
+                  onChange={(e) => setShippingData({...shippingData, email: e.target.value})}
+                  className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.email ? 'border-red-500' : 'border-gray-200'}`}
+                />
+                {shippingErrors.email && <p className="text-red-500 text-xs mt-1">{shippingErrors.email}</p>}
+              </div>
+              <div>
+                <input 
+                  placeholder="Phone (optional)" 
+                  type="tel"
+                  value={shippingData.phone}
+                  onChange={(e) => setShippingData({...shippingData, phone: e.target.value})}
+                  className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.phone ? 'border-red-500' : 'border-gray-200'}`}
+                />
+                {shippingErrors.phone && <p className="text-red-500 text-xs mt-1">{shippingErrors.phone}</p>}
+              </div>
+              <div>
+                <input 
+                  placeholder="Street Address" 
+                  value={shippingData.street}
+                  onChange={(e) => setShippingData({...shippingData, street: e.target.value})}
+                  className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.street ? 'border-red-500' : 'border-gray-200'}`}
+                />
+                {shippingErrors.street && <p className="text-red-500 text-xs mt-1">{shippingErrors.street}</p>}
+              </div>
               <div className="grid grid-cols-3 gap-3">
-                <input placeholder="City" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
-                <input placeholder="Region" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
-                <input placeholder="Postal" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
+                <div>
+                  <input 
+                    placeholder="City" 
+                    value={shippingData.city}
+                    onChange={(e) => setShippingData({...shippingData, city: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.city ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {shippingErrors.city && <p className="text-red-500 text-xs mt-1">{shippingErrors.city}</p>}
+                </div>
+                <div>
+                  <input 
+                    placeholder="Region" 
+                    value={shippingData.state}
+                    onChange={(e) => setShippingData({...shippingData, state: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.state ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {shippingErrors.state && <p className="text-red-500 text-xs mt-1">{shippingErrors.state}</p>}
+                </div>
+                <div>
+                  <input 
+                    placeholder="Postal" 
+                    value={shippingData.postalCode}
+                    onChange={(e) => setShippingData({...shippingData, postalCode: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${shippingErrors.postalCode ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {shippingErrors.postalCode && <p className="text-red-500 text-xs mt-1">{shippingErrors.postalCode}</p>}
+                </div>
               </div>
-              <button onClick={() => setStep(2)} className="w-full btn-primary py-3.5 rounded-full text-sm font-semibold">Continue to Payment</button>
+              <button onClick={handleShippingSubmit} className="w-full btn-primary py-3.5 rounded-full text-sm font-semibold">Continue to Payment</button>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-4 animate-fade-in">
               <h3 className="text-sm font-semibold text-gray-900">Payment Details</h3>
-              <input placeholder="Card Number" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
-              <div className="grid grid-cols-2 gap-3">
-                <input placeholder="MM/YY" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
-                <input placeholder="CVC" className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
+              <div>
+                <input 
+                  placeholder="Card Number" 
+                  value={paymentData.cardNumber}
+                  onChange={(e) => setPaymentData({...paymentData, cardNumber: e.target.value})}
+                  className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${paymentErrors.cardNumber ? 'border-red-500' : 'border-gray-200'}`}
+                />
+                {paymentErrors.cardNumber && <p className="text-red-500 text-xs mt-1">{paymentErrors.cardNumber}</p>}
               </div>
-              <input placeholder="Name on Card" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-gray-900 transition" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <input 
+                    placeholder="MM/YY" 
+                    value={paymentData.expiryDate}
+                    onChange={(e) => setPaymentData({...paymentData, expiryDate: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${paymentErrors.expiryDate ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {paymentErrors.expiryDate && <p className="text-red-500 text-xs mt-1">{paymentErrors.expiryDate}</p>}
+                </div>
+                <div>
+                  <input 
+                    placeholder="CVC" 
+                    value={paymentData.cvc}
+                    onChange={(e) => setPaymentData({...paymentData, cvc: e.target.value})}
+                    className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${paymentErrors.cvc ? 'border-red-500' : 'border-gray-200'}`}
+                  />
+                  {paymentErrors.cvc && <p className="text-red-500 text-xs mt-1">{paymentErrors.cvc}</p>}
+                </div>
+              </div>
+              <div>
+                <input 
+                  placeholder="Name on Card" 
+                  value={paymentData.cardholderName}
+                  onChange={(e) => setPaymentData({...paymentData, cardholderName: e.target.value})}
+                  className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm focus:bg-white focus:border-gray-900 transition ${paymentErrors.cardholderName ? 'border-red-500' : 'border-gray-200'}`}
+                />
+                {paymentErrors.cardholderName && <p className="text-red-500 text-xs mt-1">{paymentErrors.cardholderName}</p>}
+              </div>
               <div className="flex gap-3">
                 <button onClick={() => setStep(1)} className="flex-1 btn-secondary py-3.5 rounded-full text-sm font-semibold">Back</button>
-                <button onClick={() => setStep(3)} className="flex-1 btn-primary py-3.5 rounded-full text-sm font-semibold">Review Order</button>
+                <button onClick={handlePaymentSubmit} className="flex-1 btn-primary py-3.5 rounded-full text-sm font-semibold">Review Order</button>
               </div>
             </div>
           )}

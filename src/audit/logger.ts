@@ -18,8 +18,10 @@ export type AuditAction =
   | 'cart.item_updated'
   | 'cart.item_removed'
   | 'cart.cleared'
+  | 'cart.synced'
   // Order operations
   | 'order.created'
+  | 'order.creation_failed'
   | 'order.status_changed'
   | 'order.cancelled'
   | 'order.refunded'
