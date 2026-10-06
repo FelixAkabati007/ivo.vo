@@ -214,9 +214,9 @@ function ProductCard({
 
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-bold text-ivo-100">${product.price}</span>
+            <span className="text-lg font-bold text-ivo-100">GH₵{product.price}</span>
             {product.originalPrice > product.price && (
-              <span className="text-xs text-ivo-400/50 line-through">${product.originalPrice}</span>
+              <span className="text-xs text-ivo-400/50 line-through">GH₵{product.originalPrice}</span>
             )}
           </div>
           <button
@@ -297,9 +297,9 @@ function ProductDetail({
             </div>
 
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-ivo-100">${product.price}</span>
+              <span className="text-3xl font-bold text-ivo-100">GH₵{product.price}</span>
               {product.originalPrice > product.price && (
-                <span className="text-lg text-ivo-400/50 line-through">${product.originalPrice}</span>
+                <span className="text-lg text-ivo-400/50 line-through">GH₵{product.originalPrice}</span>
               )}
             </div>
 
@@ -418,7 +418,7 @@ function CartSidebar({
                         <Plus size={12} />
                       </button>
                     </div>
-                    <span className="text-sm font-bold text-ivo-200">${(item.product.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-sm font-bold text-ivo-200">GH₵{(item.product.price * item.quantity).toFixed(2)}</span>
                   </div>
                 </div>
                 <button 
@@ -438,7 +438,7 @@ function CartSidebar({
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-ivo-300/60">Subtotal</span>
-                <span className="text-ivo-200">${total.toFixed(2)}</span>
+                <span className="text-ivo-200">GH₵{total.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-ivo-300/60">Shipping</span>
@@ -446,7 +446,7 @@ function CartSidebar({
               </div>
               <div className="flex justify-between text-base font-bold pt-2 border-t border-white/5">
                 <span className="text-ivo-100">Total</span>
-                <span className="text-gradient">${total.toFixed(2)}</span>
+                <span className="text-gradient">GH₵{total.toFixed(2)}</span>
               </div>
             </div>
             <button 
@@ -504,7 +504,7 @@ function CheckoutModal({
             </div>
             <div className="flex justify-between text-sm font-bold">
               <span className="text-ivo-100">Total Paid</span>
-              <span className="text-gradient">${total.toFixed(2)}</span>
+              <span className="text-gradient">GH₵{total.toFixed(2)}</span>
             </div>
           </div>
           <button onClick={onClose} className="w-full py-3 rounded-xl btn-primary text-white font-semibold">
@@ -588,14 +588,14 @@ function CheckoutModal({
                 {items.map((item) => (
                   <div key={item.product.id} className="flex justify-between text-sm">
                     <span className="text-ivo-200/70 truncate">{item.product.name} × {item.quantity}</span>
-                    <span className="text-ivo-200 font-medium">${(item.product.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-ivo-200 font-medium">GH₵{(item.product.price * item.quantity).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
               <div className="space-y-2 pt-2 border-t border-white/5">
                 <div className="flex justify-between text-sm">
                   <span className="text-ivo-300/60">Subtotal</span>
-                  <span className="text-ivo-200">${total.toFixed(2)}</span>
+                  <span className="text-ivo-200">GH₵{total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-ivo-300/60">Shipping</span>
@@ -603,7 +603,7 @@ function CheckoutModal({
                 </div>
                 <div className="flex justify-between text-lg font-bold pt-2 border-t border-white/5">
                   <span className="text-ivo-100">Total</span>
-                  <span className="text-gradient">${total.toFixed(2)}</span>
+                  <span className="text-gradient">GH₵{total.toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -912,7 +912,7 @@ export default function App() {
         {/* Features Banner */}
         <section className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-3 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
           {[
-            { icon: Truck, title: 'Free Shipping', desc: 'On orders over $50' },
+            { icon: Truck, title: 'Free Shipping', desc: 'On orders over GH₵50' },
             { icon: Shield, title: 'Secure Payment', desc: '256-bit encryption' },
             { icon: Package, title: 'Easy Returns', desc: '30-day return policy' },
             { icon: Zap, title: 'Fast Delivery', desc: '2-3 business days' },
