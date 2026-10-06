@@ -22,20 +22,20 @@ interface CartItem {
 function DatabaseStatusIndicator({ status }: { status: DatabaseStatus | null }) {
   const [isExpanded, setIsExpanded] = useState(false);
   if (!status) return null;
-  const isNeon = status.mode === 'neon';
-  const isConnected = status.connection.isConnected;
+  const isAPI = status.mode === 'api';
+  const isConnected = status.connected;
 
   return (
     <div className="fixed bottom-4 left-4 z-40">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-white shadow-lg border text-xs font-medium transition-all hover:shadow-xl ${
-          isNeon && isConnected ? 'border-green-200 text-green-700' : 'border-gray-200 text-gray-500'
+          isAPI && isConnected ? 'border-green-200 text-green-700' : 'border-gray-200 text-gray-500'
         }`}
         aria-label="Database status"
       >
-        {isNeon && isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-        <span>{isNeon ? 'Neon DB' : 'Local'}</span>
+        {isAPI && isConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
+        <span>{isAPI ? 'Server API' : 'Local'}</span>
         <Database size={12} />
       </button>
       {isExpanded && (
@@ -47,13 +47,12 @@ function DatabaseStatusIndicator({ status }: { status: DatabaseStatus | null }) 
             <button onClick={() => setIsExpanded(false)} className="p-1 rounded hover:bg-gray-100"><X size={14} /></button>
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Mode</span><span className={`font-medium ${isNeon ? 'text-green-600' : 'text-gray-600'}`}>{isNeon ? 'Neon PostgreSQL' : 'Local Storage'}</span></div>
+            <div className="flex justify-between text-xs"><span className="text-gray-500">Mode</span><span className={`font-medium ${isAPI ? 'text-green-600' : 'text-gray-600'}`}>{isAPI ? 'Server API' : 'Local Storage'}</span></div>
             <div className="flex justify-between text-xs"><span className="text-gray-500">Status</span><span className={`font-medium ${isConnected ? 'text-green-600' : 'text-gray-400'}`}>{isConnected ? 'Connected' : 'Offline'}</span></div>
             <div className="flex justify-between text-xs"><span className="text-gray-500">Products</span><span className="text-gray-900">{status.productCount}</span></div>
-            {status.connection.latency && <div className="flex justify-between text-xs"><span className="text-gray-500">Latency</span><span className="text-gray-900">{Math.round(status.connection.latency)}ms</span></div>}
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Queries</span><span className="text-gray-900">{status.connection.queryCount}</span></div>
+            {status.latency && <div className="flex justify-between text-xs"><span className="text-gray-500">Latency</span><span className="text-gray-900">{Math.round(status.latency)}ms</span></div>}
           </div>
-          {!isNeon && <p className="text-[10px] text-gray-400 pt-2 border-t border-gray-100">Set VITE_NEON_DATABASE_URL to connect Neon PostgreSQL.</p>}
+          {!isAPI && <p className="text-[10px] text-gray-400 pt-2 border-t border-gray-100">Set VITE_API_BASE_URL to connect to the server API.</p>}
         </div>
       )}
     </div>
@@ -1088,7 +1087,7 @@ export default function App() {
             <div className="flex items-center gap-4">
               <span className="text-xs text-gray-400">Powered by</span>
               <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
-                <Database size={12} /> Neon PostgreSQL
+                <Database size={12} /> Neon PostgreSQL (via Server API)
               </span>
             </div>
           </div>

@@ -2,15 +2,18 @@
  * Database Service for ivo Electronics
  * 
  * High-level data access layer that:
- * - Uses Neon PostgreSQL when configured
- * - Falls back to in-memory/localStorage when not connected
+ * - Uses server-side API for all database operations
+ * - Falls back to localStorage for guest experience
  * - Provides a unified API regardless of backend
  * - Implements caching and optimistic updates
  * - Logs all operations for audit trail
+ * 
+ * SECURITY: This service NEVER connects directly to the database.
+ * All database operations go through the server-side API.
  */
 
-import { isNeonConfigured, initializeNeon, testConnection, getConnectionState, type ConnectionState } from './client';
 import { allProducts, type Product } from '../data/products';
+import { ProductAPI, CartAPI, OrderAPI, HealthAPI } from '../api/client';
 
 // ============================================
 // TYPES
@@ -44,8 +47,9 @@ export interface ShippingAddress {
 }
 
 export interface DatabaseStatus {
-  mode: 'neon' | 'local';
-  connection: ConnectionState;
+  mode: 'api' | 'local';
+  connected: boolean;
+  latency: number | null;
   productCount: number;
   lastSync: Date | null;
 }
@@ -78,30 +82,43 @@ function getSessionId(): string {
 // DATABASE MODE DETECTION
 // ============================================
 
-let databaseMode: 'neon' | 'local' = 'local';
+let databaseMode: 'api' | 'local' = 'local';
+let isConnected = false;
+let lastLatency: number | null = null;
 
 export function initializeDatabase(): DatabaseStatus {
-  if (isNeonConfigured()) {
-    const success = initializeNeon();
-    databaseMode = success ? 'neon' : 'local';
+  // Check if API is available
+  if (import.meta.env.VITE_API_BASE_URL) {
+    databaseMode = 'api';
+    isConnected = true;
   }
 
   return {
     mode: databaseMode,
-    connection: getConnectionState(),
+    connected: isConnected,
+    latency: lastLatency,
     productCount: allProducts.length,
     lastSync: getLastSync(),
   };
 }
 
 export async function checkDatabaseHealth(): Promise<DatabaseStatus> {
-  if (databaseMode === 'neon') {
-    await testConnection();
+  if (databaseMode === 'api') {
+    try {
+      const startTime = performance.now();
+      const response = await HealthAPI.check();
+      lastLatency = performance.now() - startTime;
+      isConnected = response.success === true;
+    } catch (error) {
+      isConnected = false;
+      lastLatency = null;
+    }
   }
 
   return {
     mode: databaseMode,
-    connection: getConnectionState(),
+    connected: isConnected,
+    latency: lastLatency,
     productCount: allProducts.length,
     lastSync: getLastSync(),
   };
@@ -121,7 +138,7 @@ function updateLastSync() {
 // ============================================
 
 export function getProducts(): Product[] {
-  // Products are static sample data - in production, this would query Neon
+  // Products are static sample data - in production, this would call the API
   return allProducts;
 }
 
@@ -172,21 +189,39 @@ export function saveCartItems(items: CartItem[]): void {
   localStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(serialized));
   updateLastSync();
 
-  // If Neon is connected, also sync to database
-  if (databaseMode === 'neon') {
-    syncCartToNeon(items).catch(console.error);
+  // If API is available, also sync to server
+  if (databaseMode === 'api') {
+    syncCartToServer(items).catch(console.error);
   }
 }
 
-async function syncCartToNeon(items: CartItem[]): Promise<void> {
-  // In production, this would use the Neon queries
-  // For now, we just log the intent
-  console.log(`[Neon Sync] Cart updated: ${items.length} items`);
+async function syncCartToServer(items: CartItem[]): Promise<void> {
+  const sessionId = getSessionId();
+  
+  try {
+    // Clear server cart first
+    await CartAPI.clear(sessionId);
+    
+    // Add each item
+    for (const item of items) {
+      await CartAPI.addItem(sessionId, item.product.id, item.quantity);
+    }
+    
+    console.log(`[API Sync] Cart synced: ${items.length} items`);
+  } catch (error) {
+    console.error('[API Sync] Failed to sync cart:', error);
+  }
 }
 
 export function clearCart(): void {
   localStorage.removeItem(STORAGE_KEYS.CART);
   updateLastSync();
+
+  // If API is available, also clear server cart
+  if (databaseMode === 'api') {
+    const sessionId = getSessionId();
+    CartAPI.clear(sessionId).catch(console.error);
+  }
 }
 
 // ============================================
@@ -227,9 +262,9 @@ export function createNewOrder(items: CartItem[], address: ShippingAddress): Ord
   localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
   updateLastSync();
 
-  // If Neon is connected, also persist to database
-  if (databaseMode === 'neon') {
-    persistOrderToNeon(order).catch(console.error);
+  // If API is available, also persist to server
+  if (databaseMode === 'api') {
+    persistOrderToServer(order).catch(console.error);
   }
 
   // Clear cart after order
@@ -238,32 +273,52 @@ export function createNewOrder(items: CartItem[], address: ShippingAddress): Ord
   return order;
 }
 
-async function persistOrderToNeon(order: Order): Promise<void> {
-  // In production, this would use the Neon queries to:
-  // 1. Create the order record
-  // 2. Create order_items records
-  // 3. Create payment record
-  // 4. Log audit event
-  console.log(`[Neon Sync] Order created: ${order.orderNumber} - GH₵${order.total.toFixed(2)}`);
+async function persistOrderToServer(order: Order): Promise<void> {
+  try {
+    const sessionId = getSessionId();
+    
+    await OrderAPI.create({
+      idempotencyKey: `order_${order.id}`,
+      sessionId,
+      shippingAddress: {
+        firstName: order.shippingAddress.firstName,
+        lastName: order.shippingAddress.lastName,
+        email: order.shippingAddress.email || 'guest@example.com',
+        street: order.shippingAddress.street,
+        city: order.shippingAddress.city,
+        state: order.shippingAddress.state,
+        postalCode: order.shippingAddress.zip,
+        country: 'Ghana',
+      },
+      currency: 'GHS',
+    });
+    
+    console.log(`[API Sync] Order created: ${order.orderNumber}`);
+  } catch (error) {
+    console.error('[API Sync] Failed to create order:', error);
+  }
 }
 
 // ============================================
 // DATABASE STATUS
 // ============================================
 
-export function getDatabaseMode(): 'neon' | 'local' {
+export function getDatabaseMode(): 'api' | 'local' {
   return databaseMode;
 }
 
 export function isNeonActive(): boolean {
-  return databaseMode === 'neon';
+  return databaseMode === 'api';
 }
 
 export function getNeonInfo() {
   return {
-    configured: isNeonConfigured(),
-    active: databaseMode === 'neon',
-    connection: getConnectionState(),
+    configured: databaseMode === 'api',
+    active: databaseMode === 'api',
+    connection: {
+      isConnected,
+      latency: lastLatency,
+    },
     schema: 'ivo_electronics',
     tables: [
       'users', 'addresses', 'products', 'cart_items',
