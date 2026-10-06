@@ -1,10 +1,108 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Search, ShoppingCart, X, Plus, Minus, Trash2, Star, Filter, RefreshCw, Heart, Eye, ChevronDown, Check, Package, Truck, Shield, Zap, ArrowRight, Menu, Home, Grid3X3, Tag } from 'lucide-react';
+import { Search, ShoppingCart, X, Plus, Minus, Trash2, Star, Filter, RefreshCw, Heart, Eye, ChevronDown, Check, Package, Truck, Shield, Zap, ArrowRight, Menu, Home, Grid3X3, Tag, Database, Wifi, WifiOff } from 'lucide-react';
 import { allProducts, allCategories, type Product } from './data/products';
+import { initializeDatabase, checkDatabaseHealth, getDatabaseMode, getNeonInfo, type DatabaseStatus } from './database/service';
 
 interface CartItem {
   product: Product;
   quantity: number;
+}
+
+// Database Status Indicator Component
+function DatabaseStatusIndicator({ status }: { status: DatabaseStatus | null }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (!status) return null;
+  
+  const isNeon = status.mode === 'neon';
+  const isConnected = status.connection.isConnected;
+  const neonInfo = getNeonInfo();
+
+  return (
+    <div className="fixed bottom-4 left-4 z-40">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-xl glass-strong text-xs font-medium transition-all hover:scale-105 ${
+          isNeon && isConnected ? 'text-green-400' : 'text-ivo-300/60'
+        }`}
+        aria-label="Database status"
+      >
+        {isNeon && isConnected ? (
+          <Wifi size={14} className="text-green-400" />
+        ) : (
+          <WifiOff size={14} className="text-ivo-400/50" />
+        )}
+        <span className="hidden sm:inline">
+          {isNeon ? 'Neon DB' : 'Local'}
+        </span>
+        <Database size={12} />
+      </button>
+
+      {isExpanded && (
+        <div className="absolute bottom-12 left-0 w-64 glass-strong rounded-2xl p-4 space-y-3 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-bold text-ivo-100 flex items-center gap-2">
+              <Database size={14} className="text-ivo-400" />
+              Database Status
+            </h4>
+            <button onClick={() => setIsExpanded(false)} className="p-1 rounded-lg hover:bg-white/10">
+              <X size={14} />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ivo-300/60">Mode</span>
+              <span className={`font-medium ${isNeon ? 'text-green-400' : 'text-ivo-300'}`}>
+                {isNeon ? 'Neon PostgreSQL' : 'Local Storage'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ivo-300/60">Connection</span>
+              <span className={`font-medium ${isConnected ? 'text-green-400' : 'text-ivo-400/50'}`}>
+                {isConnected ? 'Connected' : 'Offline'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ivo-300/60">Products</span>
+              <span className="text-ivo-200">{status.productCount}</span>
+            </div>
+            {status.connection.latency && (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-ivo-300/60">Latency</span>
+                <span className="text-ivo-200">{Math.round(status.connection.latency)}ms</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ivo-300/60">Queries</span>
+              <span className="text-ivo-200">{status.connection.queryCount}</span>
+            </div>
+          </div>
+
+          {isNeon && (
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-xs text-ivo-300/40 mb-2">Tables:</p>
+              <div className="flex flex-wrap gap-1">
+                {neonInfo.tables.slice(0, 6).map((table) => (
+                  <span key={table} className="px-2 py-0.5 rounded-md glass text-[10px] text-ivo-300/60">
+                    {table}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isNeon && (
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-[10px] text-ivo-300/40 leading-relaxed">
+                Set <code className="text-ivo-400">VITE_NEON_DATABASE_URL</code> in your environment to connect to Neon PostgreSQL.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Header Component
@@ -701,7 +799,22 @@ export default function App() {
   const [sortBy, setSortBy] = useState('default');
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
   const mainRef = useRef<HTMLDivElement>(null);
+
+  // Initialize database connection on mount
+  useEffect(() => {
+    const status = initializeDatabase();
+    setDbStatus(status);
+    
+    // Check health periodically
+    const interval = setInterval(async () => {
+      const updatedStatus = await checkDatabaseHealth();
+      setDbStatus(updatedStatus);
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredProducts = useMemo(() => {
     let products = allProducts;
@@ -775,12 +888,16 @@ export default function App() {
     setCartItems(prev => prev.filter(item => item.product.id !== productId));
   }, []);
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    try {
+      // Refresh database health check
+      const updatedStatus = await checkDatabaseHealth();
+      setDbStatus(updatedStatus);
       setLastRefresh(new Date());
-      setIsRefreshing(false);
-    }, 800);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
   }, []);
 
   const handleCheckout = useCallback(() => {
@@ -795,6 +912,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-warm-bg">
+      <DatabaseStatusIndicator status={dbStatus} />
       <Header 
         cartCount={cartCount}
         onCartClick={() => setIsCartOpen(true)}
@@ -843,6 +961,11 @@ export default function App() {
                 </span>
                 <span>•</span>
                 <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Database size={10} />
+                  {dbStatus?.mode === 'neon' ? 'Neon PostgreSQL' : 'Local Storage'}
+                </span>
               </div>
             </div>
           </div>
