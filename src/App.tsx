@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { allProducts, allCategories, type Product } from './data/products';
 import { initializeDatabase, checkDatabaseHealth, getDatabaseMode, getNeonInfo, type DatabaseStatus } from './database/service';
+import { formatCurrency, getCurrency, setCurrency, getCurrencyCode } from './config/currency';
 
 interface CartItem {
   product: Product;
@@ -69,7 +70,7 @@ function Header({ cartCount, onCartClick, searchQuery, onSearchChange, onMenuCli
     <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100">
       {/* Top bar */}
       <div className="bg-gray-900 text-white text-center text-xs py-2 font-medium tracking-wider">
-        FREE SHIPPING ON ORDERS OVER GH₵50 | USE CODE: <span className="font-bold">IVO2024</span>
+        FREE SHIPPING ON ORDERS OVER {formatCurrency(50)} | USE CODE: <span className="font-bold">IVO2024</span>
       </div>
       
       {/* Main nav */}
@@ -350,8 +351,8 @@ function ProductCard({ product, onAddToCart, onViewDetails, index }: {
 
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-baseline gap-2">
-            <span className="text-base font-bold text-gray-900">GH₵{product.price}</span>
-            {discount > 0 && <span className="text-xs text-gray-400 line-through">GH₵{product.originalPrice}</span>}
+            <span className="text-base font-bold text-gray-900">{formatCurrency(product.price)}</span>
+            {discount > 0 && <span className="text-xs text-gray-400 line-through">{formatCurrency(product.originalPrice)}</span>}
           </div>
         </div>
       </div>
@@ -416,8 +417,8 @@ function ProductDetail({ product, onClose, onAddToCart }: {
             </div>
 
             <div className="flex items-baseline gap-3 pt-2">
-              <span className="text-3xl font-bold text-gray-900">GH₵{product.price}</span>
-              {discount > 0 && <span className="text-lg text-gray-400 line-through">GH₵{product.originalPrice}</span>}
+              <span className="text-3xl font-bold text-gray-900">{formatCurrency(product.price)}</span>
+              {discount > 0 && <span className="text-lg text-gray-400 line-through">{formatCurrency(product.originalPrice)}</span>}
             </div>
 
             <div className="flex items-center gap-4 pt-2">
@@ -501,7 +502,7 @@ function CartSidebar({ items, onClose, onUpdateQuantity, onRemoveItem, onCheckou
                       <span className="text-xs font-medium px-2">{item.quantity}</span>
                       <button onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)} aria-label="Increase"><Plus size={12} /></button>
                     </div>
-                    <span className="text-sm font-bold text-gray-900">GH₵{(item.product.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-sm font-bold text-gray-900">{formatCurrency(item.product.price * item.quantity)}</span>
                   </div>
                 </div>
                 <button onClick={() => onRemoveItem(item.product.id)} className="self-start p-1.5 hover:bg-red-50 rounded-lg text-gray-300 hover:text-red-500 transition" aria-label="Remove">
@@ -515,11 +516,11 @@ function CartSidebar({ items, onClose, onUpdateQuantity, onRemoveItem, onCheckou
         {items.length > 0 && (
           <div className="p-6 border-t border-gray-100 space-y-4 bg-white">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal</span><span className="text-gray-900 font-medium">GH₵{total.toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal</span><span className="text-gray-900 font-medium">{formatCurrency(total)}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-500">Shipping</span><span className="text-green-600 font-medium">Free</span></div>
               <div className="flex justify-between text-base font-bold pt-3 border-t border-gray-100">
                 <span className="text-gray-900">Total</span>
-                <span className="text-gray-900">GH₵{total.toFixed(2)}</span>
+                <span className="text-gray-900">{formatCurrency(total)}</span>
               </div>
             </div>
             <button onClick={onCheckout} className="w-full btn-primary py-3.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2">
@@ -560,7 +561,7 @@ function CheckoutModal({ onClose, total, items }: { onClose: () => void; total: 
           </div>
           <div className="bg-gray-50 rounded-xl p-5 space-y-2">
             <div className="flex justify-between text-sm"><span className="text-gray-500">Items</span><span className="text-gray-900">{items.reduce((a, b) => a + b.quantity, 0)}</span></div>
-            <div className="flex justify-between text-sm font-bold"><span className="text-gray-900">Total Paid</span><span className="text-gray-900">GH₵{total.toFixed(2)}</span></div>
+            <div className="flex justify-between text-sm font-bold"><span className="text-gray-900">Total Paid</span><span className="text-gray-900">{formatCurrency(total)}</span></div>
           </div>
           <button onClick={onClose} className="w-full btn-primary py-3.5 rounded-full text-sm font-semibold">Continue Shopping</button>
         </div>
@@ -631,15 +632,15 @@ function CheckoutModal({ onClose, total, items }: { onClose: () => void; total: 
                 {items.map((item) => (
                   <div key={item.product.id} className="flex justify-between text-sm">
                     <span className="text-gray-600 truncate">{item.product.name} × {item.quantity}</span>
-                    <span className="text-gray-900 font-medium">GH₵{(item.product.price * item.quantity).toFixed(2)}</span>
+                    <span className="text-gray-900 font-medium">{formatCurrency(item.product.price * item.quantity)}</span>
                   </div>
                 ))}
               </div>
               <div className="space-y-2 pt-2 border-t border-gray-100">
-                <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal</span><span className="text-gray-900">GH₵{total.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-gray-500">Subtotal</span><span className="text-gray-900">{formatCurrency(total)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-500">Shipping</span><span className="text-green-600">Free</span></div>
                 <div className="flex justify-between text-lg font-bold pt-3 border-t border-gray-100">
-                  <span className="text-gray-900">Total</span><span className="text-gray-900">GH₵{total.toFixed(2)}</span>
+                  <span className="text-gray-900">Total</span><span className="text-gray-900">{formatCurrency(total)}</span>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -696,7 +697,7 @@ function MobileNav({ isOpen, onClose, activeCategory, onCategoryChange, categori
 // ============================================
 function FeaturesBanner() {
   const features = [
-    { icon: Truck, title: 'Free Shipping', desc: 'On orders over GH₵50' },
+    { icon: Truck, title: 'Free Shipping', desc: `On orders over ${formatCurrency(50)}` },
     { icon: Shield, title: 'Secure Payment', desc: '256-bit encryption' },
     { icon: Package, title: 'Easy Returns', desc: '30-day policy' },
     { icon: Zap, title: 'Fast Delivery', desc: '2-3 business days' },
