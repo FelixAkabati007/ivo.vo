@@ -11,6 +11,19 @@ import { formatCurrency, getCurrency, setCurrency, getCurrencyCode } from './con
 import { validateShippingAddress, validatePayment } from './utils/validation';
 import { auditLog } from './audit/logger';
 
+// Import new components
+import { 
+  ToastProvider, 
+  WishlistProvider, 
+  AuthProvider, 
+  BackToTop, 
+  CookieConsent, 
+  NewsletterPopup,
+  useToast,
+  useWishlist,
+  useAuth
+} from './components';
+
 interface CartItem {
   product: Product;
   quantity: number;
@@ -66,6 +79,8 @@ function Header({ cartCount, onCartClick, searchQuery, onSearchChange, onMenuCli
   cartCount: number; onCartClick: () => void; searchQuery: string; onSearchChange: (q: string) => void; onMenuClick: () => void;
 }) {
   const [showSearch, setShowSearch] = useState(false);
+  const { isAuthenticated, user, openLoginModal } = useAuth();
+  const { wishlist } = useWishlist();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100">
@@ -109,12 +124,31 @@ function Header({ cartCount, onCartClick, searchQuery, onSearchChange, onMenuCli
             <button onClick={() => setShowSearch(!showSearch)} className="md:hidden p-2.5 hover:bg-gray-100 rounded-full transition" aria-label="Search">
               <Search size={20} />
             </button>
-            <button className="hidden sm:flex p-2.5 hover:bg-gray-100 rounded-full transition" aria-label="Account">
-              <User size={20} />
-            </button>
-            <button className="hidden sm:flex p-2.5 hover:bg-gray-100 rounded-full transition" aria-label="Wishlist">
+            
+            {/* Account Button */}
+            {isAuthenticated ? (
+              <button className="hidden sm:flex items-center gap-2 p-2.5 hover:bg-gray-100 rounded-full transition" aria-label="Account">
+                <div className="w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </div>
+              </button>
+            ) : (
+              <button onClick={openLoginModal} className="hidden sm:flex p-2.5 hover:bg-gray-100 rounded-full transition" aria-label="Login">
+                <User size={20} />
+              </button>
+            )}
+            
+            {/* Wishlist Button */}
+            <button className="hidden sm:flex relative p-2.5 hover:bg-gray-100 rounded-full transition" aria-label={`Wishlist ${wishlist.length} items`}>
               <Heart size={20} />
+              {wishlist.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {wishlist.length > 99 ? '99+' : wishlist.length}
+                </span>
+              )}
             </button>
+            
+            {/* Cart Button */}
             <button onClick={onCartClick} className="relative p-2.5 hover:bg-gray-100 rounded-full transition" aria-label={`Cart ${cartCount} items`}>
               <ShoppingCart size={20} />
               {cartCount > 0 && (
@@ -278,11 +312,42 @@ function CategoryFilter({ categories, activeCategory, onCategoryChange }: {
 function ProductCard({ product, onAddToCart, onViewDetails, index }: {
   product: Product; onAddToCart: (p: Product) => void; onViewDetails: (p: Product) => void; index: number;
 }) {
-  const [isLiked, setIsLiked] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { addToast } = useToast();
+  const isLiked = isInWishlist(product.id);
   const discount = product.originalPrice > product.price
     ? Math.round((1 - product.price / product.originalPrice) * 100)
     : 0;
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAddToCart(product);
+    addToast({
+      type: 'success',
+      title: 'Added to cart',
+      message: `${product.name} has been added to your cart.`,
+    });
+  };
+
+  const handleToggleWishlist = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isLiked) {
+      removeFromWishlist(product.id);
+      addToast({
+        type: 'info',
+        title: 'Removed from wishlist',
+        message: `${product.name} has been removed from your wishlist.`,
+      });
+    } else {
+      addToWishlist(product);
+      addToast({
+        type: 'success',
+        title: 'Added to wishlist',
+        message: `${product.name} has been added to your wishlist.`,
+      });
+    }
+  };
 
   return (
     <div
@@ -316,14 +381,14 @@ function ProductCard({ product, onAddToCart, onViewDetails, index }: {
             <Eye size={16} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); }}
+            onClick={handleToggleWishlist}
             className={`w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-900 hover:text-white transition-all transform translate-y-2 group-hover:translate-y-0 ${isLiked ? 'text-red-500' : ''}`}
             aria-label={isLiked ? 'Remove from wishlist' : 'Add to wishlist'}
           >
             <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onAddToCart(product); }}
+            onClick={handleAddToCart}
             className="w-10 h-10 bg-gray-900 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-700 transition-all transform translate-y-2 group-hover:translate-y-0"
             aria-label="Add to cart"
             disabled={!product.inStock}
@@ -939,13 +1004,27 @@ export default function App() {
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.product.price * i.quantity, 0), [cartItems]);
   const cartCount = useMemo(() => cartItems.reduce((s, i) => s + i.quantity, 0), [cartItems]);
 
+  const { addToast } = useToast();
+
   const addToCart = useCallback((product: Product, quantity = 1) => {
     setCartItems(prev => {
       const existing = prev.find(i => i.product.id === product.id);
-      if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: Math.min(10, i.quantity + quantity) } : i);
+      if (existing) {
+        addToast({
+          type: 'info',
+          title: 'Cart updated',
+          message: `${product.name} quantity updated to ${existing.quantity + quantity}.`,
+        });
+        return prev.map(i => i.product.id === product.id ? { ...i, quantity: Math.min(10, i.quantity + quantity) } : i);
+      }
+      addToast({
+        type: 'success',
+        title: 'Added to cart',
+        message: `${product.name} has been added to your cart.`,
+      });
       return [...prev, { product, quantity }];
     });
-  }, []);
+  }, [addToast]);
 
   const updateQuantity = useCallback((productId: number, quantity: number) => {
     if (quantity <= 0) setCartItems(prev => prev.filter(i => i.product.id !== productId));
@@ -968,136 +1047,147 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
-      <DatabaseStatusIndicator status={dbStatus} />
-      <Header cartCount={cartCount} onCartClick={() => setIsCartOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} onMenuClick={() => setIsMobileMenuOpen(true)} />
-      <MobileNav isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} activeCategory={activeCategory} onCategoryChange={setActiveCategory} categories={allCategories} />
+    <ToastProvider>
+      <WishlistProvider>
+        <AuthProvider>
+          <div className="min-h-screen bg-white">
+            <DatabaseStatusIndicator status={dbStatus} />
+            <Header cartCount={cartCount} onCartClick={() => setIsCartOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} onMenuClick={() => setIsMobileMenuOpen(true)} />
+            <MobileNav isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} activeCategory={activeCategory} onCategoryChange={setActiveCategory} categories={allCategories} />
 
-      <main className="pt-28 lg:pt-36">
-        <HeroSection />
-        <FeaturesBanner />
+            <main className="pt-28 lg:pt-36">
+              <HeroSection />
+              <FeaturesBanner />
 
-        {/* Products Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-          {/* Section header */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
-            <div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {activeCategory === 'All' ? 'All Products' : activeCategory}
-              </h2>
-              <p className="text-sm text-gray-400 mt-1">
-                {filteredProducts.length} products • Updated {lastRefresh.toLocaleTimeString()}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={handleRefresh} className={`flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-full text-xs font-medium hover:bg-gray-200 transition ${isRefreshing ? 'opacity-60' : ''}`}>
-                <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
-              </button>
-              <div className="relative">
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
-                  className="appearance-none pl-4 pr-8 py-2.5 bg-gray-100 rounded-full text-xs font-medium focus:outline-none focus:bg-gray-200 cursor-pointer">
-                  <option value="default">Featured</option>
-                  <option value="price-low">Price: Low → High</option>
-                  <option value="price-high">Price: High → Low</option>
-                  <option value="rating">Top Rated</option>
-                  <option value="name">Name A-Z</option>
-                </select>
-                <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              {/* Products Section */}
+              <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+                {/* Section header */}
+                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                      {activeCategory === 'All' ? 'All Products' : activeCategory}
+                    </h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {filteredProducts.length} products • Updated {lastRefresh.toLocaleTimeString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={handleRefresh} className={`flex items-center gap-2 px-4 py-2.5 bg-gray-100 rounded-full text-xs font-medium hover:bg-gray-200 transition ${isRefreshing ? 'opacity-60' : ''}`}>
+                      <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
+                    </button>
+                    <div className="relative">
+                      <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+                        className="appearance-none pl-4 pr-8 py-2.5 bg-gray-100 rounded-full text-xs font-medium focus:outline-none focus:bg-gray-200 cursor-pointer">
+                        <option value="default">Featured</option>
+                        <option value="price-low">Price: Low → High</option>
+                        <option value="price-high">Price: High → Low</option>
+                        <option value="rating">Top Rated</option>
+                        <option value="name">Name A-Z</option>
+                      </select>
+                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Categories */}
+                <div className="mb-8">
+                  <CategoryFilter categories={allCategories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+                </div>
+
+                {/* Grid */}
+                {filteredProducts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Search size={24} className="text-gray-300" />
+                    </div>
+                    <p className="text-gray-500">No products found</p>
+                    <button onClick={() => { setSearchQuery(''); setActiveCategory('All'); }} className="text-sm text-gray-900 font-medium underline">Clear filters</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                    {filteredProducts.map((product, index) => (
+                      <ProductCard key={product.id} product={product} index={index} onAddToCart={addToCart} onViewDetails={setSelectedProduct} />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Newsletter */}
+              <section className="bg-gray-900 text-white">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+                  <h2 className="text-2xl sm:text-3xl font-bold mb-3">Stay in the Loop</h2>
+                  <p className="text-gray-400 text-sm max-w-md mx-auto mb-8">Subscribe to get special offers, new arrivals, and exclusive deals delivered to your inbox.</p>
+                  <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+                    <input type="email" placeholder="Enter your email" className="flex-1 px-5 py-3 bg-white/10 border border-white/20 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:border-white/40" />
+                    <button className="px-6 py-3 bg-white text-gray-900 rounded-full text-sm font-semibold hover:bg-gray-100 transition">Subscribe</button>
+                  </div>
+                </div>
+              </section>
+            </main>
+
+            {/* Footer */}
+            <footer className="bg-white border-t border-gray-100">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                  <div className="col-span-2 md:col-span-1">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center"><Zap size={16} className="text-white" /></div>
+                      <span className="text-lg font-bold">ivo</span>
+                    </div>
+                    <p className="text-sm text-gray-400">Premium electronics for the modern lifestyle.</p>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900 mb-4">Shop</h4>
+                    <ul className="space-y-2 text-sm text-gray-500">
+                      <li><a href="#" className="hover:text-gray-900 transition">New Arrivals</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Best Sellers</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Sale</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Collections</a></li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900 mb-4">Support</h4>
+                    <ul className="space-y-2 text-sm text-gray-500">
+                      <li><a href="#" className="hover:text-gray-900 transition">Contact Us</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">FAQs</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Shipping</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Returns</a></li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900 mb-4">Company</h4>
+                    <ul className="space-y-2 text-sm text-gray-500">
+                      <li><a href="#" className="hover:text-gray-900 transition">About</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Careers</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Privacy</a></li>
+                      <li><a href="#" className="hover:text-gray-900 transition">Terms</a></li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="mt-12 pt-8 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <p className="text-xs text-gray-400">© 2024 ivo Electronics. All rights reserved.</p>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-gray-400">Powered by</span>
+                    <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
+                      <Database size={12} /> Neon PostgreSQL (via Server API)
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </footer>
 
-          {/* Categories */}
-          <div className="mb-8">
-            <CategoryFilter categories={allCategories} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-          </div>
+            {/* New UI Components */}
+            <BackToTop />
+            <CookieConsent />
+            <NewsletterPopup />
 
-          {/* Grid */}
-          {filteredProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                <Search size={24} className="text-gray-300" />
-              </div>
-              <p className="text-gray-500">No products found</p>
-              <button onClick={() => { setSearchQuery(''); setActiveCategory('All'); }} className="text-sm text-gray-900 font-medium underline">Clear filters</button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
-              {filteredProducts.map((product, index) => (
-                <ProductCard key={product.id} product={product} index={index} onAddToCart={addToCart} onViewDetails={setSelectedProduct} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Newsletter */}
-        <section className="bg-gray-900 text-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3">Stay in the Loop</h2>
-            <p className="text-gray-400 text-sm max-w-md mx-auto mb-8">Subscribe to get special offers, new arrivals, and exclusive deals delivered to your inbox.</p>
-            <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-              <input type="email" placeholder="Enter your email" className="flex-1 px-5 py-3 bg-white/10 border border-white/20 rounded-full text-sm text-white placeholder-gray-400 focus:outline-none focus:border-white/40" />
-              <button className="px-6 py-3 bg-white text-gray-900 rounded-full text-sm font-semibold hover:bg-gray-100 transition">Subscribe</button>
-            </div>
+            {/* Modals */}
+            {selectedProduct && <ProductDetail product={selectedProduct} onClose={() => setSelectedProduct(null)} onAddToCart={addToCart} />}
+            {isCartOpen && <CartSidebar items={cartItems} onClose={() => setIsCartOpen(false)} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCheckout={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} total={cartTotal} />}
+            {isCheckoutOpen && <CheckoutModal onClose={() => { setIsCheckoutOpen(false); setCartItems([]); }} total={cartTotal} items={cartItems} />}
           </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center"><Zap size={16} className="text-white" /></div>
-                <span className="text-lg font-bold">ivo</span>
-              </div>
-              <p className="text-sm text-gray-400">Premium electronics for the modern lifestyle.</p>
-            </div>
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900 mb-4">Shop</h4>
-              <ul className="space-y-2 text-sm text-gray-500">
-                <li><a href="#" className="hover:text-gray-900 transition">New Arrivals</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Best Sellers</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Sale</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Collections</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900 mb-4">Support</h4>
-              <ul className="space-y-2 text-sm text-gray-500">
-                <li><a href="#" className="hover:text-gray-900 transition">Contact Us</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">FAQs</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Shipping</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Returns</a></li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900 mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-gray-500">
-                <li><a href="#" className="hover:text-gray-900 transition">About</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Careers</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Privacy</a></li>
-                <li><a href="#" className="hover:text-gray-900 transition">Terms</a></li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-12 pt-8 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-gray-400">© 2024 ivo Electronics. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-gray-400">Powered by</span>
-              <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
-                <Database size={12} /> Neon PostgreSQL (via Server API)
-              </span>
-            </div>
-          </div>
-        </div>
-      </footer>
-
-      {/* Modals */}
-      {selectedProduct && <ProductDetail product={selectedProduct} onClose={() => setSelectedProduct(null)} onAddToCart={addToCart} />}
-      {isCartOpen && <CartSidebar items={cartItems} onClose={() => setIsCartOpen(false)} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCheckout={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} total={cartTotal} />}
-      {isCheckoutOpen && <CheckoutModal onClose={() => { setIsCheckoutOpen(false); setCartItems([]); }} total={cartTotal} items={cartItems} />}
-    </div>
+        </AuthProvider>
+      </WishlistProvider>
+    </ToastProvider>
   );
 }
