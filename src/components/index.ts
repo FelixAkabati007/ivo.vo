@@ -50,3 +50,6 @@ export {
   TermsPage, 
   PrivacyPage 
 } from './StaticPages';
+
+// Error boundary
+export { ErrorBoundary } from './ErrorBoundary';
