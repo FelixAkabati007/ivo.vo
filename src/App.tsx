@@ -358,7 +358,7 @@ function ProductCard({ product, onAddToCart, onViewDetails, index }: {
         {!imageLoaded && <div className="absolute inset-0 bg-gray-200 animate-pulse" />}
         <img
           src={product.image}
-          alt={product.name}
+          alt={product.imageAlt || product.name}
           loading="lazy"
           onLoad={() => setImageLoaded(true)}
           className={`product-image w-full h-full object-cover ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
@@ -447,7 +447,7 @@ function ProductDetail({ product, onClose, onAddToCart }: {
 
         <div className="grid md:grid-cols-2 gap-0">
           <div className="relative aspect-square bg-gray-100">
-            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+            <img src={product.image} alt={product.imageAlt || product.name} className="w-full h-full object-cover" />
             {discount > 0 && (
               <span className="absolute top-4 left-4 badge badge-sale text-sm">-{discount}%</span>
             )}

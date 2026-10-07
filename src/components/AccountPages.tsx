@@ -279,7 +279,7 @@ function WishlistTab() {
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {wishlist.map(product => (
             <div key={product.id} className="bg-white rounded-2xl border border-gray-200 p-4">
-              <img src={product.image} alt={product.name} className="w-full aspect-square object-cover rounded-xl mb-3" />
+              <img src={product.image} alt={product.imageAlt || product.name} className="w-full aspect-square object-cover rounded-xl mb-3" />
               <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">{product.name}</h3>
               <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(product.price)}</p>
               <button
