@@ -23,6 +23,7 @@ import {
   useWishlist,
   useAuth
 } from './components';
+import { Admin } from './admin';
 
 interface CartItem {
   product: Product;
@@ -978,6 +979,14 @@ function AppContent() {
 
   // Now we can safely use context hooks because this component is inside the providers
   const { addToast } = useToast();
+
+  // Check if we're on admin routes
+  const isAdminRoute = window.location.pathname.startsWith('/admin');
+
+  // If on admin route, render admin dashboard
+  if (isAdminRoute) {
+    return <Admin />;
+  }
 
   useEffect(() => {
     const status = initializeDatabase();
