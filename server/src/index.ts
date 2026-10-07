@@ -31,7 +31,20 @@ app.use('*', rateLimiter());
 // Error handling
 app.onError(errorHandler);
 
-// Routes
+// Routes - Versioned API (v1)
+app.route('/api/v1/health', healthRouter);
+app.route('/api/v1/auth', authRouter);
+app.route('/api/v1/products', productsRouter);
+app.route('/api/v1/categories', productsRouter); // Categories endpoint
+app.route('/api/v1/search', productsRouter); // Search endpoint
+app.route('/api/v1/cart', cartRouter);
+app.route('/api/v1/checkout', ordersRouter); // Checkout quote endpoint
+app.route('/api/v1/orders', ordersRouter);
+app.route('/api/v1/webhooks', paymentsRouter); // Webhook endpoint
+app.route('/api/v1/me', authRouter); // Account endpoints
+app.route('/api/v1/admin', adminRouter);
+
+// Legacy routes (redirect to v1)
 app.route('/api/health', healthRouter);
 app.route('/api/auth', authRouter);
 app.route('/api/products', productsRouter);

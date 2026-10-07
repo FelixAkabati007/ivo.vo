@@ -125,9 +125,10 @@ export interface PaymentIntent {
 // ============================================
 
 const API_CONFIG = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseUrl: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   timeout: 30000,
   retries: 3,
+  apiVersion: 'v1',
 };
 
 // ============================================
