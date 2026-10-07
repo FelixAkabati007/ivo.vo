@@ -962,7 +962,8 @@ function FeaturesBanner() {
 // ============================================
 // MAIN APP
 // ============================================
-export default function App() {
+// Inner component that uses context hooks - must be rendered inside providers
+function AppContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -974,6 +975,9 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [dbStatus, setDbStatus] = useState<DatabaseStatus | null>(null);
+
+  // Now we can safely use context hooks because this component is inside the providers
+  const { addToast } = useToast();
 
   useEffect(() => {
     const status = initializeDatabase();
@@ -1003,8 +1007,6 @@ export default function App() {
 
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.product.price * i.quantity, 0), [cartItems]);
   const cartCount = useMemo(() => cartItems.reduce((s, i) => s + i.quantity, 0), [cartItems]);
-
-  const { addToast } = useToast();
 
   const addToCart = useCallback((product: Product, quantity = 1) => {
     setCartItems(prev => {
@@ -1047,10 +1049,7 @@ export default function App() {
   }, []);
 
   return (
-    <ToastProvider>
-      <WishlistProvider>
-        <AuthProvider>
-          <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white">
             <DatabaseStatusIndicator status={dbStatus} />
             <Header cartCount={cartCount} onCartClick={() => setIsCartOpen(true)} searchQuery={searchQuery} onSearchChange={setSearchQuery} onMenuClick={() => setIsMobileMenuOpen(true)} />
             <MobileNav isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} activeCategory={activeCategory} onCategoryChange={setActiveCategory} categories={allCategories} />
@@ -1181,11 +1180,21 @@ export default function App() {
             <CookieConsent />
             <NewsletterPopup />
 
-            {/* Modals */}
-            {selectedProduct && <ProductDetail product={selectedProduct} onClose={() => setSelectedProduct(null)} onAddToCart={addToCart} />}
-            {isCartOpen && <CartSidebar items={cartItems} onClose={() => setIsCartOpen(false)} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCheckout={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} total={cartTotal} />}
-            {isCheckoutOpen && <CheckoutModal onClose={() => { setIsCheckoutOpen(false); setCartItems([]); }} total={cartTotal} items={cartItems} />}
-          </div>
+      {/* Modals */}
+      {selectedProduct && <ProductDetail product={selectedProduct} onClose={() => setSelectedProduct(null)} onAddToCart={addToCart} />}
+      {isCartOpen && <CartSidebar items={cartItems} onClose={() => setIsCartOpen(false)} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} onCheckout={() => { setIsCartOpen(false); setIsCheckoutOpen(true); }} total={cartTotal} />}
+      {isCheckoutOpen && <CheckoutModal onClose={() => { setIsCheckoutOpen(false); setCartItems([]); }} total={cartTotal} items={cartItems} />}
+    </div>
+  );
+}
+
+// Main App component - wraps everything with providers
+export default function App() {
+  return (
+    <ToastProvider>
+      <WishlistProvider>
+        <AuthProvider>
+          <AppContent />
         </AuthProvider>
       </WishlistProvider>
     </ToastProvider>
