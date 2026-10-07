@@ -5,40 +5,6 @@
  * Import from this file instead of individual modules.
  */
 
-// Client & Connection
-export { 
-  initializeNeon, 
-  executeQuery, 
-  testConnection, 
-  getConnectionState, 
-  isNeonConfigured,
-  getSqlClient,
-  type ConnectionState,
-  type NeonConfig 
-} from './client';
-
-// Queries
-export {
-  getAllProducts,
-  getProductsByCategory,
-  searchProducts,
-  getProductById,
-  getProductsSortedByPriceLow,
-  getProductsSortedByPriceHigh,
-  getCartItems,
-  addToCart,
-  updateCartQuantity,
-  removeFromCart,
-  clearCart,
-  createOrder,
-  addOrderItem,
-  getOrderById,
-  getOrdersBySession,
-  createPayment,
-  logAuditEvent,
-  getDatabaseStats,
-} from './queries';
-
 // Service (High-level API)
 export {
   initializeDatabase,
@@ -61,5 +27,5 @@ export {
   type DatabaseStatus,
 } from './service';
 
-// Schema
+// Schema (for reference)
 export { NEON_SCHEMA, SEED_PRODUCTS_SQL } from './schema';

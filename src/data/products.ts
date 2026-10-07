@@ -1,3 +1,5 @@
+import { getProductImage, getProductImageAlt } from './product-images';
+
 export interface Product {
   id: number;
   name: string;
@@ -7,6 +9,7 @@ export interface Product {
   rating: number;
   reviews: number;
   image: string;
+  imageAlt: string;
   description: string;
   features: string[];
   inStock: boolean;
@@ -139,16 +142,6 @@ const featureSets: Record<string, string[][]> = {
 
 const badges = ['New', 'Sale', 'Hot', 'Limited', 'Best Seller', 'Trending', 'Exclusive', 'Premium'];
 
-function generateImageId(index: number): string {
-  const seeds = [
-    'electronics', 'technology', 'device', 'gadget', 'tech',
-    'computer', 'phone', 'audio', 'camera', 'watch',
-    'laptop', 'headphones', 'speaker', 'monitor', 'keyboard',
-    'mouse', 'tablet', 'console', 'smart', 'digital'
-  ];
-  return seeds[index % seeds.length] + '-' + index;
-}
-
 export function generateProducts(): Product[] {
   const products: Product[] = [];
   let id = 1;
@@ -165,7 +158,6 @@ export function generateProducts(): Product[] {
       const rating = Math.round((3.5 + Math.random() * 1.5) * 10) / 10;
       const reviews = Math.floor(Math.random() * 2000) + 50;
       const hasBadge = Math.random() > 0.65;
-      const imgId = generateImageId(id);
 
       products.push({
         id,
@@ -175,7 +167,8 @@ export function generateProducts(): Product[] {
         originalPrice: discount > 0 ? originalPrice : basePrice,
         rating,
         reviews,
-        image: `https://picsum.photos/seed/${imgId}/600/600`,
+        image: getProductImage(name),
+        imageAlt: getProductImageAlt(name),
         description: desc,
         features: features[nameIdx % features.length],
         inStock: Math.random() > 0.1,
